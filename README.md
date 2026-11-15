@@ -4,7 +4,7 @@
 
 Cette archive zip contient un code de main.m par réseau entraîné.
 
-Les codes qui existent dans ce zip et qui sont pertinents sont :
+Les codes qui existent dans ce zip sont :
 
 - main_shufflenet
 - main_mobilenetv2
