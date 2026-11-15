@@ -4,14 +4,14 @@
 
 clearvars
 close all
-rng(0) % Reproducible train/validation split and weight initialization.
+%%rng(0) % Reproducible train/validation split and weight initialization.
 
 %% Configuration
 % Set to true to predict the test set and write the submission JSON.
-generateSubmission = false;
+generateSubmission = true;
 
 inputSize = [224 224 3];  % Every image is resized to this size.
-validationFraction = 0.2;        % Fraction of each class held out for validation.
+validationFraction = 0.10;        % Fraction of each class held out for validation.
 
 % Paths are resolved relative to this script, so it runs from any folder.
 srcDir = fileparts(mfilename("fullpath"));
@@ -40,9 +40,10 @@ fprintf("Training images: %d, validation images: %d, classes: %d\n", ...
 % Training images are randomly flipped, shifted and scaled.
 augmenter = imageDataAugmenter( ...
     RandXReflection=true, ...
+    RandRotation=[-60 60], ...
     RandXTranslation=[-20 20], ...
     RandYTranslation=[-20 20], ...
-    RandScale=[0.9 1.1]);
+    RandScale=[0.8 1.2]);
 augTrain = augmentedImageDatastore(inputSize, imdsTrain, ...
     DataAugmentation=augmenter, ColorPreprocessing="gray2rgb");
 augValidation = augmentedImageDatastore(inputSize, imdsVal, ...
@@ -54,37 +55,90 @@ augValidation = augmentedImageDatastore(inputSize, imdsVal, ...
 layers = [
     imageInputLayer(inputSize)
 
-    convolution2dLayer(3, 64, Padding="same", Stride=2)
+
+    convolution2dLayer(3, 32, Padding="same")
     batchNormalizationLayer()
-    reluLayer()
+    swishLayer()
+
+    convolution2dLayer(3, 32, Padding="same")
+    batchNormalizationLayer()
+    swishLayer()
+
+    maxPooling2dLayer(2, Stride=2)
 
     convolution2dLayer(3, 64, Padding="same")
     batchNormalizationLayer()
-    reluLayer()
+    swishLayer()
+
+    convolution2dLayer(3, 64, Padding="same")
+    batchNormalizationLayer()
+    swishLayer()
 
     maxPooling2dLayer(2, Stride=2)
 
-    convolution2dLayer(3, 128, Padding="same")
-    batchNormalizationLayer()
-    reluLayer()
 
-    convolution2dLayer(3, 128, Padding="same")
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
+
+    % 2. Mélange et création des 128 canaux (Pointwise)
+    convolution2dLayer(1, 128, Padding="same")
+
     batchNormalizationLayer()
-    reluLayer()
+    swishLayer()
+
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
+
+    % 2. Mélange et création des 128 canaux (Pointwise)
+    convolution2dLayer(1, 128, Padding="same")
+
+    batchNormalizationLayer()
+    swishLayer()
+
+    maxPooling2dLayer(2, Stride=2)
+    
+    % 1. Filtrage spatial indépendant (Depthwise)
+    % Le '1' signifie 1 filtre par canal existant. 'channel-wise' empêche le mélange.
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
+
+    % 2. Mélange et création des 256 canaux (Pointwise)
+    convolution2dLayer(1, 256, Padding="same")
+
+    batchNormalizationLayer()
+    swishLayer()
+
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
+
+    % 2. Mélange et création des 256 canaux (Pointwise)
+    convolution2dLayer(1, 256, Padding="same")
+
+    batchNormalizationLayer()
+    swishLayer()
 
     maxPooling2dLayer(2, Stride=2)
 
-    convolution2dLayer(3, 256, Padding="same")
-    batchNormalizationLayer()
-    reluLayer()
+    % 1. Filtrage spatial indépendant (Depthwise)
+    % Le '1' signifie 1 filtre par canal existant. 'channel-wise' empêche le mélange.
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
 
-    convolution2dLayer(3, 256, Padding="same")
+    % 2. Mélange et création des 512 canaux (Pointwise)
+    convolution2dLayer(1, 512, Padding="same")
+
     batchNormalizationLayer()
-    reluLayer()
+    swishLayer()
+
+    groupedConvolution2dLayer(3, 1, 'channel-wise', Padding="same")
+
+    % 2. Mélange et création des 512 canaux (Pointwise)
+    convolution2dLayer(1, 512, Padding="same")
+
+    batchNormalizationLayer()
+    swishLayer()
 
     maxPooling2dLayer(2, Stride=2)
 
-    fullyConnectedLayer(numClasses)
+
+    % Remplacement des FC layers par le GAP
+    globalAveragePooling2dLayer()
+    fullyConnectedLayer(numClasses, Name="fc_final")
     softmaxLayer()
     ];
 
@@ -92,11 +146,11 @@ analyzeNetwork(layers)
 
 %% Hyperparameters
 miniBatchSize = 32;
-maxEpochs = 30;
-initialLearnRate = 1e-3;
+maxEpochs = 60;
+initialLearnRate = 5e-2;
 sgdmMomentum = 0.9;
-L2Regularization = 5e-4;
-learnRateDropPeriod = 18;
+L2Regularization = 1e-4;
+learnRateDropPeriod = 20;
 learnRateDropFactor = 0.1;
 
 %% Train the network
