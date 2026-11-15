@@ -87,7 +87,7 @@ maxEpochs = 5;
 initialLearnRate = 1e-3;
 sgdmMomentum = 0.9;
 L2Regularization = 5e-4;
-learnRateDropPeriod = 18;
+learnRateDropPeriod = 3;
 learnRateDropFactor = 0.1;
 
 %% Train the network
